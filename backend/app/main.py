@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from app.routes import analytics, ai_feedback
+from fastapi import Depends
+from app.routes.auth import get_current_user
 
 # Load environment variables
 load_dotenv()
@@ -98,25 +100,35 @@ async def get_subjects():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/check-answer")
-async def check_answer(question_id: int, user_answer: str):
+async def check_answer(question_id: int, user_answer: str, time_spent_seconds: int = 0, user: dict = Depends(get_current_user)):
     """
-    Check if a user's answer is correct
+    Check a multiple-choice ACT answer and log it in user_answers
     """
     try:
-        # Get the question
+        # Fetch question
         response = supabase.table("questions").select("*").eq("id", question_id).execute()
-        
         if not response.data:
             raise HTTPException(status_code=404, detail="Question not found")
-        
         question = response.data[0]
+
+        # Check correctness
         is_correct = user_answer.strip().lower() == question["correct_answer"].strip().lower()
-        
+
+        # Insert into user_answers
+        supabase.table("user_answers").insert({
+            "user_id": user["id"],
+            "question_id": question_id,
+            "user_answer": user_answer,
+            "is_correct": is_correct,
+            "time_spent_seconds": time_spent_seconds
+        }).execute()
+
         return {
             "is_correct": is_correct,
             "correct_answer": question["correct_answer"],
             "explanation": question["explanation"]
         }
+
     except HTTPException:
         raise
     except Exception as e:

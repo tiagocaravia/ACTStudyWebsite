@@ -9,7 +9,7 @@ from app.routes import (
     analytics,
     ai_feedback,
     questions,
-    sessions,
+    sessions,  # <-- newly added
 )
 
 load_dotenv()
@@ -20,7 +20,9 @@ app = FastAPI(
     description="Week 5 ACT Prep Backend",
 )
 
+# -------------------------------
 # CORS middleware
+# -------------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -32,6 +34,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# -------------------------------
+# Basic endpoints
+# -------------------------------
 @app.get("/")
 def root():
     return {"message": "ACT Study API is running!"}
@@ -40,9 +45,12 @@ def root():
 def health_check():
     return {"status": "healthy"}
 
+# -------------------------------
+# Routers
+# -------------------------------
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
 app.include_router(ai_feedback.router, prefix="/api/ai", tags=["ai"])
 app.include_router(questions.router, prefix="/api/questions", tags=["questions"])
-app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"])
+app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"])  # <-- sessions

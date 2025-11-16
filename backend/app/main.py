@@ -126,6 +126,10 @@ async def check_answer(question_id: int, user_answer: str):
 app.include_router(analytics.router)
 app.include_router(ai_feedback.router)
 
+# Auth routes
+from app.routes import auth
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+
 # Admin routes (add authentication in production!)
 from app.routes import admin
 app.include_router(admin.router)

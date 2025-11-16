@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import ProgressDashboard from '../components/ProgressDashboard';
 import './SummaryPage.css';
 
@@ -36,10 +37,7 @@ interface AIFeedback {
 
 const SummaryPage: React.FC = () => {
   const navigate = useNavigate();
-  const [userId, setUserId] = useState<number | null>(() => {
-    const saved = localStorage.getItem('act_user_id');
-    return saved ? parseInt(saved, 10) : null;
-  });
+  const { user, loading: authLoading } = useAuth();
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [aiFeedback, setAiFeedback] = useState<AIFeedback | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -47,24 +45,24 @@ const SummaryPage: React.FC = () => {
   const API_URL = 'https://actstudywebsite.onrender.com';
 
   useEffect(() => {
-    if (userId) {
+    if (user) {
       fetchData();
-    } else {
+    } else if (!authLoading) {
       setLoading(false);
     }
-  }, [userId]);
+  }, [user, authLoading]);
 
   const fetchData = async () => {
-    if (!userId) return;
+    if (!user) return;
 
     try {
       // Fetch analytics
-      const analyticsRes = await fetch(`${API_URL}/api/analytics/${userId}`);
+      const analyticsRes = await fetch(`${API_URL}/api/analytics/${user.id}`);
       const analyticsData = await analyticsRes.json();
       setAnalytics(analyticsData);
 
       // Fetch AI feedback
-      const feedbackRes = await fetch(`${API_URL}/api/ai-feedback/${userId}`);
+      const feedbackRes = await fetch(`${API_URL}/api/ai-feedback/${user.id}`);
       const feedbackData = await feedbackRes.json();
       setAiFeedback(feedbackData);
 
@@ -85,14 +83,14 @@ const SummaryPage: React.FC = () => {
     return colors[subject] || '#61dafb';
   };
 
-  if (!userId) {
+  if (!user) {
     return (
       <div className="summary-page">
         <div className="no-user">
-          <h2>No User ID Set</h2>
-          <p>Please set a User ID to view your summary.</p>
-          <button onClick={() => navigate('/questions')} className="cta-button">
-            Go to Questions
+          <h2>Please Login</h2>
+          <p>You need to be logged in to view your summary.</p>
+          <button onClick={() => navigate('/login')} className="cta-button">
+            Login
           </button>
         </div>
       </div>
@@ -154,7 +152,7 @@ const SummaryPage: React.FC = () => {
 
       {/* Progress Dashboard */}
       <section className="dashboard-section">
-        <ProgressDashboard userId={userId} API_URL={API_URL} />
+        <ProgressDashboard userId={user.id} API_URL={API_URL} />
       </section>
 
       {/* Completed Questions Summary */}

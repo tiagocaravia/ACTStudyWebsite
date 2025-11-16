@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import ProgressDashboard from '../components/ProgressDashboard';
 import './QuestionsPage.css';
 
@@ -15,6 +16,7 @@ interface Question {
 
 const QuestionsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user, token, loading: authLoading } = useAuth();
   const [searchParams] = useSearchParams();
   const [apiStatus, setApiStatus] = useState<string>('Checking...');
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -24,11 +26,6 @@ const QuestionsPage: React.FC = () => {
   const [userAnswers, setUserAnswers] = useState<{[key: number]: string}>({});
   const [showResults, setShowResults] = useState<{[key: number]: boolean}>({});
   const [loading, setLoading] = useState<boolean>(true);
-  const [userId, setUserId] = useState<number | null>(() => {
-    const saved = localStorage.getItem('act_user_id');
-    return saved ? parseInt(saved, 10) : null;
-  });
-  const [showUserIdInput, setShowUserIdInput] = useState<boolean>(!userId);
   const questionStartTimes = useRef<{[key: number]: number}>({});
 
   const API_URL = 'https://actstudywebsite.onrender.com';
@@ -92,7 +89,7 @@ const QuestionsPage: React.FC = () => {
       [questionId]: true
     });
 
-    if (userId && userAnswers[questionId]) {
+    if (user && userAnswers[questionId]) {
       const startTime = questionStartTimes.current[questionId] || Date.now();
       const timeSpent = Math.floor((Date.now() - startTime) / 1000);
       
@@ -101,9 +98,10 @@ const QuestionsPage: React.FC = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
           },
           body: JSON.stringify({
-            user_id: userId,
+            user_id: user.id,
             question_id: questionId,
             user_answer: userAnswers[questionId],
             time_spent_seconds: timeSpent
@@ -125,16 +123,20 @@ const QuestionsPage: React.FC = () => {
     return colors[subject] || '#61dafb';
   };
 
-  const handleUserIdSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const input = e.currentTarget.querySelector('input') as HTMLInputElement;
-    const id = parseInt(input.value, 10);
-    if (!isNaN(id) && id > 0) {
-      setUserId(id);
-      localStorage.setItem('act_user_id', id.toString());
-      setShowUserIdInput(false);
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/login');
     }
-  };
+  }, [user, authLoading, navigate]);
+
+  if (authLoading) {
+    return <div className="questions-page"><div className="loading">Loading...</div></div>;
+  }
+
+  if (!user) {
+    return null; // Will redirect
+  }
 
   return (
     <div className="questions-page">
@@ -150,41 +152,8 @@ const QuestionsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* User ID Input */}
-      {showUserIdInput ? (
-        <div className="user-id-prompt">
-          <h3>Set Your User ID</h3>
-          <p>Enter a user ID to track your progress and get personalized AI feedback</p>
-          <form onSubmit={handleUserIdSubmit} className="user-id-form">
-            <input
-              type="number"
-              placeholder="User ID (e.g., 1)"
-              min="1"
-              className="user-id-input"
-            />
-            <button type="submit" className="user-id-submit">
-              Set ID
-            </button>
-          </form>
-        </div>
-      ) : userId && (
-        <div className="user-id-display">
-          <span>User ID: <strong>{userId}</strong></span>
-          <button
-            onClick={() => {
-              setShowUserIdInput(true);
-              setUserId(null);
-              localStorage.removeItem('act_user_id');
-            }}
-            className="change-user-id"
-          >
-            Change
-          </button>
-        </div>
-      )}
-
       {/* Progress Dashboard */}
-      {userId && <ProgressDashboard userId={userId} API_URL={API_URL} />}
+      <ProgressDashboard userId={user.id} API_URL={API_URL} />
       
       {/* Subject Filter */}
       <div className="subject-filter">

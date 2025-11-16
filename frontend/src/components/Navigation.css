@@ -34,6 +34,43 @@
   align-items: center;
 }
 
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.user-name {
+  color: #bbb;
+  font-size: 0.9rem;
+}
+
+.logout-button {
+  background: #444;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.3s ease;
+}
+
+.logout-button:hover {
+  background: #555;
+}
+
+.register-link {
+  background: #667eea;
+  padding: 8px 16px;
+  border-radius: 5px;
+  color: white !important;
+}
+
+.register-link:hover {
+  background: #5568d3;
+}
+
 .nav-link {
   color: #bbb;
   text-decoration: none;

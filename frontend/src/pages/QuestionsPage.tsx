@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import ProgressDashboard from '../components/ProgressDashboard';
-import './QuestionsPage.css';
+// src/pages/QuestionsPage.tsx
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import ProgressDashboard from "../components/ProgressDashboard";
+import { useSession } from "../hooks/useSession";
+import "./QuestionsPage.css";
 
 interface Question {
   id: number;
@@ -16,55 +18,41 @@ interface Question {
 
 const QuestionsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, token, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [searchParams] = useSearchParams();
-  const [apiStatus, setApiStatus] = useState<string>('Checking...');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>(
-    searchParams.get('subject') || 'all'
+    searchParams.get("subject") || "all"
   );
-  const [userAnswers, setUserAnswers] = useState<{[key: number]: string}>({});
-  const [showResults, setShowResults] = useState<{[key: number]: boolean}>({});
+  const [userAnswers, setUserAnswers] = useState<{ [key: number]: string }>({});
+  const [showResults, setShowResults] = useState<{ [key: number]: boolean }>({});
   const [loading, setLoading] = useState<boolean>(true);
-  const questionStartTimes = useRef<{[key: number]: number}>({});
+  const questionStartTimes = useRef<{ [key: number]: number }>({});
 
-  const API_URL = 'https://actstudywebsite.onrender.com';
+  const { sessionId, startSession, submitAnswer, finishSession, results } = useSession();
 
-  useEffect(() => {
-    fetch(`${API_URL}/`)
-      .then(res => res.json())
-      .then(data => setApiStatus(data.message))
-      .catch(err => setApiStatus('API connection failed'));
+  const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
 
-    // Check for subject in URL params
-    const subjectParam = searchParams.get('subject');
-    if (subjectParam) {
-      setSelectedSubject(subjectParam);
-      fetchQuestions(subjectParam);
-    } else {
-      fetchQuestions();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
-  const fetchQuestions = (subject?: string) => {
+  // ---------------------------
+  // Fetch questions from API
+  // ---------------------------
+  const fetchQuestions = async (subject?: string) => {
     setLoading(true);
-    const url = subject && subject !== 'all' 
-      ? `${API_URL}/api/questions?subject=${subject}&limit=20`
-      : `${API_URL}/api/questions?limit=20`;
-    
-    fetch(url)
-      .then(res => res.json())
-      .then(data => {
-        setQuestions(data.questions);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error(err);
-        setLoading(false);
-      });
+    try {
+      const query = subject && subject !== "all" ? `?subject=${subject}&limit=20` : "?limit=20";
+      const res = await fetch(`${API_URL}/questions${query}`);
+      const data = await res.json();
+      setQuestions(data.questions || []);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // ---------------------------
+  // Handle subject filter
+  // ---------------------------
   const handleSubjectChange = (subject: string) => {
     setSelectedSubject(subject);
     fetchQuestions(subject);
@@ -72,104 +60,132 @@ const QuestionsPage: React.FC = () => {
     setShowResults({});
   };
 
+  // ---------------------------
+  // Handle answer selection
+  // ---------------------------
   const handleAnswerSelect = (questionId: number, answer: string) => {
-    setUserAnswers({
-      ...userAnswers,
-      [questionId]: answer
-    });
-    
+    setUserAnswers({ ...userAnswers, [questionId]: answer });
     if (!questionStartTimes.current[questionId]) {
       questionStartTimes.current[questionId] = Date.now();
     }
   };
 
-  const checkAnswer = async (questionId: number) => {
-    setShowResults({
-      ...showResults,
-      [questionId]: true
-    });
+  // ---------------------------
+  // Check answer (submit to session)
+  // ---------------------------
+  const handleCheckAnswer = async (questionId: number) => {
+    setShowResults({ ...showResults, [questionId]: true });
+    const userAnswer = userAnswers[questionId];
+    if (!userAnswer) return;
 
-    if (user && userAnswers[questionId]) {
-      const startTime = questionStartTimes.current[questionId] || Date.now();
-      const timeSpent = Math.floor((Date.now() - startTime) / 1000);
-      
+    // Start session if not already started
+    if (!sessionId) {
       try {
-        await fetch(`${API_URL}/api/check-answer`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token && { 'Authorization': `Bearer ${token}` })
-          },
-          body: JSON.stringify({
-            user_id: user.id,
-            question_id: questionId,
-            user_answer: userAnswers[questionId],
-            time_spent_seconds: timeSpent
-          })
-        });
-      } catch (error) {
-        console.error('Error tracking answer:', error);
+        await startSession();
+      } catch (err) {
+        console.error("Failed to start session:", err);
+        return;
       }
     }
-  };
 
-  const getSubjectColor = (subject: string) => {
-    const colors: {[key: string]: string} = {
-      math: '#61dafb',
-      english: '#f39c12',
-      reading: '#9b59b6',
-      science: '#2ecc71'
-    };
-    return colors[subject] || '#61dafb';
-  };
+    const timeSpent = Math.floor(
+      (Date.now() - (questionStartTimes.current[questionId] || Date.now())) / 1000
+    );
 
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate('/login');
+    try {
+      await submitAnswer(questionId, userAnswer, timeSpent);
+    } catch (error) {
+      console.error("Error submitting answer:", error);
     }
-  }, [user, authLoading, navigate]);
+  };
 
-  if (authLoading) {
-    return <div className="questions-page"><div className="loading">Loading...</div></div>;
-  }
+  // ---------------------------
+  // Finish session
+  // ---------------------------
+  const handleFinishSession = async () => {
+    if (!sessionId) return;
+    try {
+      await finishSession();
+      alert("Session finished! Check your dashboard for results.");
+    } catch (err) {
+      console.error("Error finishing session:", err);
+    }
+  };
 
-  if (!user) {
-    return <div className="questions-page"><div className="loading">Redirecting to login...</div></div>;
-  }
+  // ---------------------------
+  // Start session & fetch questions on mount
+  // ---------------------------
+  useEffect(() => {
+    const initialize = async () => {
+      if (!sessionId) {
+        try {
+          await startSession();
+        } catch (error) {
+          console.error("Error starting session:", error);
+        }
+      }
+      const subjectParam = searchParams.get("subject");
+      fetchQuestions(subjectParam || undefined);
+    };
+    initialize();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // ---------------------------
+  // Redirect to login if not authenticated
+  // ---------------------------
+  useEffect(() => {
+    if (!authLoading && !user) navigate("/login");
+  }, [authLoading, user, navigate]);
+
+  // ---------------------------
+  // Get color by subject
+  // ---------------------------
+  const getSubjectColor = (subject: string) => {
+    const colors: { [key: string]: string } = {
+      math: "#61dafb",
+      english: "#f39c12",
+      reading: "#9b59b6",
+      science: "#2ecc71",
+    };
+    return colors[subject] || "#61dafb";
+  };
+
+  if (authLoading) return <div className="loading">Loading...</div>;
+  if (!user) return <div className="loading">Redirecting to login...</div>;
 
   return (
     <div className="questions-page">
       <div className="questions-header">
         <h1>ACT Practice Questions</h1>
-        <div className="header-actions">
-          <button 
-            className="summary-button"
-            onClick={() => navigate('/summary')}
-          >
+        <div>
+          <button className="summary-button" onClick={() => navigate("/summary")}>
             View Summary
+          </button>
+          <button className="finish-session-btn" onClick={handleFinishSession}>
+            Finish Session
           </button>
         </div>
       </div>
 
       {/* Progress Dashboard */}
       <ProgressDashboard userId={user.id} API_URL={API_URL} />
-      
+
       {/* Subject Filter */}
       <div className="subject-filter">
-        <button 
-          onClick={() => handleSubjectChange('all')} 
-          className={`subject-btn ${selectedSubject === 'all' ? 'active' : ''}`}
+        <button
+          onClick={() => handleSubjectChange("all")}
+          className={`subject-btn ${selectedSubject === "all" ? "active" : ""}`}
         >
           All Subjects
         </button>
-        {['math', 'english', 'reading', 'science'].map(subject => (
+        {["math", "english", "reading", "science"].map((subject) => (
           <button
             key={subject}
             onClick={() => handleSubjectChange(subject)}
-            className={`subject-btn ${selectedSubject === subject ? 'active' : ''}`}
-            style={{ 
-              backgroundColor: selectedSubject === subject ? getSubjectColor(subject) : '#444'
+            className={`subject-btn ${selectedSubject === subject ? "active" : ""}`}
+            style={{
+              backgroundColor: selectedSubject === subject ? getSubjectColor(subject) : "#444",
             }}
           >
             {subject.charAt(0).toUpperCase() + subject.slice(1)}
@@ -190,15 +206,20 @@ const QuestionsPage: React.FC = () => {
             const isCorrect = userAnswer === q.correct_answer;
 
             return (
-              <div key={q.id} className="question-card" style={{ borderColor: getSubjectColor(q.subject) }}>
+              <div
+                key={q.id}
+                className="question-card"
+                style={{ borderColor: getSubjectColor(q.subject) }}
+              >
                 {/* Question Header */}
                 <div className="question-header">
-                  <span className="subject-badge" style={{ backgroundColor: getSubjectColor(q.subject) }}>
+                  <span
+                    className="subject-badge"
+                    style={{ backgroundColor: getSubjectColor(q.subject) }}
+                  >
                     {q.subject}
                   </span>
-                  <span className="difficulty-badge">
-                    {q.difficulty}
-                  </span>
+                  <span className="difficulty-badge">{q.difficulty}</span>
                 </div>
 
                 {/* Question Text */}
@@ -208,17 +229,25 @@ const QuestionsPage: React.FC = () => {
 
                 {/* Answer Choices */}
                 <div className="choices-container">
-                  {q.choices.map((choice: string, idx: number) => (
-                    <div 
-                      key={idx} 
+                  {q.choices.map((choice, idx) => (
+                    <div
+                      key={idx}
                       onClick={() => !showResult && handleAnswerSelect(q.id, choice)}
-                      className={`choice ${showResult && choice === q.correct_answer ? 'correct' : ''} ${showResult && choice === userAnswer && !isCorrect ? 'incorrect' : ''} ${userAnswer === choice ? 'selected' : ''}`}
+                      className={`choice ${
+                        showResult && choice === q.correct_answer ? "correct" : ""
+                      } ${
+                        showResult && choice === userAnswer && !isCorrect ? "incorrect" : ""
+                      } ${userAnswer === choice ? "selected" : ""}`}
                       style={{
-                        backgroundColor: 
-                          showResult && choice === q.correct_answer ? '#2ecc71' :
-                          showResult && choice === userAnswer && !isCorrect ? '#e74c3c' :
-                          userAnswer === choice ? '#3498db' : '#1a1d23',
-                        cursor: showResult ? 'default' : 'pointer'
+                        backgroundColor:
+                          showResult && choice === q.correct_answer
+                            ? "#2ecc71"
+                            : showResult && choice === userAnswer && !isCorrect
+                            ? "#e74c3c"
+                            : userAnswer === choice
+                            ? "#3498db"
+                            : "#1a1d23",
+                        cursor: showResult ? "default" : "pointer",
                       }}
                     >
                       {choice}
@@ -228,17 +257,15 @@ const QuestionsPage: React.FC = () => {
 
                 {/* Check Answer Button */}
                 {!showResult && userAnswer && (
-                  <button onClick={() => checkAnswer(q.id)} className="check-button">
+                  <button onClick={() => handleCheckAnswer(q.id)} className="check-button">
                     Check Answer
                   </button>
                 )}
 
                 {/* Result and Explanation */}
                 {showResult && (
-                  <div className={`result ${isCorrect ? 'correct-result' : 'incorrect-result'}`}>
-                    <p className="result-message">
-                      {isCorrect ? '✓ Correct!' : '✗ Incorrect'}
-                    </p>
+                  <div className={`result ${isCorrect ? "correct-result" : "incorrect-result"}`}>
+                    <p className="result-message">{isCorrect ? "✓ Correct!" : "✗ Incorrect"}</p>
                     <p className="correct-answer">
                       <strong>Correct Answer:</strong> {q.correct_answer}
                     </p>
@@ -257,4 +284,3 @@ const QuestionsPage: React.FC = () => {
 };
 
 export default QuestionsPage;
-

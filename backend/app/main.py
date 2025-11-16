@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from app.routes import analytics, ai_feedback
 
 # Load environment variables
 load_dotenv()
@@ -12,7 +13,7 @@ app = FastAPI(title="ACT Study API", version="1.0.0")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "https://actstudywebsite.onrender.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -120,3 +121,11 @@ async def check_answer(question_id: int, user_answer: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Include routers
+app.include_router(analytics.router)
+app.include_router(ai_feedback.router)
+
+# Admin routes (add authentication in production!)
+from app.routes import admin
+app.include_router(admin.router)

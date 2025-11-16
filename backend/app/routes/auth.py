@@ -11,9 +11,26 @@ from app.auth.jwt_handler import (
     decode_access_token
 )
 from typing import Optional
+import re
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
+
+def validate_password(password: str) -> tuple[bool, str]:
+    """Validate password requirements: min 8 chars, must contain uppercase, lowercase, and numbers"""
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+    
+    if not re.search(r'[a-z]', password):
+        return False, "Password must contain at least one lowercase letter"
+    
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one uppercase letter"
+    
+    if not re.search(r'[0-9]', password):
+        return False, "Password must contain at least one number"
+    
+    return True, ""
 
 class UserRegister(BaseModel):
     email: EmailStr
@@ -64,6 +81,14 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
 @router.post("/register", response_model=TokenResponse)
 async def register_user(user_data: UserRegister, db: Session = Depends(get_db)):
     """Register a new user"""
+    # Validate password
+    is_valid, error_message = validate_password(user_data.password)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_message
+        )
+    
     # Check if email already exists
     existing_user = db.query(User).filter(User.email == user_data.email).first()
     if existing_user:

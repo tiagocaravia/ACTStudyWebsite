@@ -29,8 +29,8 @@ const PaymentPage: React.FC = () => {
 
           <div className="pricing-card featured">
             <div className="popular-badge">Most Popular</div>
-            <h3>Premium</h3>
-            <div className="price">$19.99<span>/month</span></div>
+            <h3>Monthly</h3>
+            <div className="price">$8<span>/month</span></div>
             <ul className="features">
               <li>✓ Unlimited practice questions</li>
               <li>✓ Advanced analytics & insights</li>
@@ -39,21 +39,24 @@ const PaymentPage: React.FC = () => {
               <li>✓ Priority support</li>
             </ul>
             <button className="pricing-button featured-button">
-              Upgrade Now
+              Subscribe Now
             </button>
           </div>
 
           <div className="pricing-card">
-            <h3>Annual</h3>
-            <div className="price">$199<span>/year</span></div>
-            <div className="savings">Save $40/year</div>
+            <div className="best-value-badge">Best Value</div>
+            <h3>Lifetime</h3>
+            <div className="price">$150</div>
+            <div className="savings">One-time payment</div>
             <ul className="features">
-              <li>✓ Everything in Premium</li>
-              <li>✓ Best value</li>
-              <li>✓ Annual commitment</li>
+              <li>✓ Everything in Monthly</li>
+              <li>✓ Lifetime access</li>
+              <li>✓ No recurring charges</li>
+              <li>✓ All future updates included</li>
+              <li>✓ Perfect for long-term prep</li>
             </ul>
             <button className="pricing-button">
-              Choose Annual
+              Get Lifetime Access
             </button>
           </div>
         </div>

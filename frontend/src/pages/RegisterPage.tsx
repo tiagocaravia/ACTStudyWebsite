@@ -14,6 +14,22 @@ const RegisterPage: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const validatePassword = (pwd: string): string | null => {
+    if (pwd.length < 8) {
+      return 'Password must be at least 8 characters long';
+    }
+    if (!/[a-z]/.test(pwd)) {
+      return 'Password must contain at least one lowercase letter';
+    }
+    if (!/[A-Z]/.test(pwd)) {
+      return 'Password must contain at least one uppercase letter';
+    }
+    if (!/[0-9]/.test(pwd)) {
+      return 'Password must contain at least one number';
+    }
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -23,8 +39,9 @@ const RegisterPage: React.FC = () => {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
 
@@ -32,10 +49,12 @@ const RegisterPage: React.FC = () => {
 
     try {
       await register(email, password, fullName || undefined, username || undefined);
-      navigate('/questions');
+      // Wait a bit more to ensure auth context state is updated
+      setTimeout(() => {
+        navigate('/questions');
+      }, 200);
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please try again.');
-    } finally {
       setLoading(false);
     }
   };
@@ -72,9 +91,12 @@ const RegisterPage: React.FC = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              placeholder="At least 6 characters"
-              minLength={6}
+              placeholder="Min 8 chars: uppercase, lowercase, numbers"
+              minLength={8}
             />
+            <small className="password-hint">
+              Must be at least 8 characters with uppercase, lowercase, and numbers
+            </small>
           </div>
 
           <div className="form-group">

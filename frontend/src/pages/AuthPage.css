@@ -70,6 +70,13 @@
   border-color: #667eea;
 }
 
+.password-hint {
+  font-size: 0.8rem;
+  color: #666;
+  margin-top: 4px;
+  display: block;
+}
+
 .error-message {
   background: #fee;
   color: #c33;

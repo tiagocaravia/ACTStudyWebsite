@@ -101,16 +101,44 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Registration failed');
+      let errorMessage = 'Registration failed';
+      try {
+        const error = await response.json();
+        errorMessage = error.detail || error.message || errorMessage;
+      } catch (e) {
+        // If response isn't JSON, use status text
+        errorMessage = response.statusText || `Server error (${response.status})`;
+      }
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();
+    
+    // Verify response structure
+    if (!data.access_token || !data.user) {
+      console.error('Invalid response structure:', data);
+      throw new Error('Invalid response from server');
+    }
+    
+    // Store in localStorage first (synchronous)
+    localStorage.setItem('autonate_token', data.access_token);
+    localStorage.setItem('autonate_user', JSON.stringify(data.user));
+    
+    // Then update state (this triggers re-render)
     setToken(data.access_token);
     setUser(data.user);
     
-    localStorage.setItem('autonate_token', data.access_token);
-    localStorage.setItem('autonate_user', JSON.stringify(data.user));
+    console.log('Registration successful');
+    console.log('Token stored:', !!data.access_token);
+    console.log('User stored:', data.user);
+    
+    // Return a promise that resolves after state is updated
+    return new Promise<void>((resolve) => {
+      // Small delay to ensure state updates
+      setTimeout(() => {
+        resolve();
+      }, 50);
+    });
   };
 
   const logout = () => {

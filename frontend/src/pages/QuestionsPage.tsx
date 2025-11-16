@@ -135,7 +135,7 @@ const QuestionsPage: React.FC = () => {
   }
 
   if (!user) {
-    return null; // Will redirect
+    return <div className="questions-page"><div className="loading">Redirecting to login...</div></div>;
   }
 
   return (

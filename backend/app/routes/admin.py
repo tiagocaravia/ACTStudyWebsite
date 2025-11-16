@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from app.database import get_supabase_client
 
-router = APIRouter()
+router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 class QuestionCreate(BaseModel):
     subject: str  # 'math', 'english', 'reading', 'science'
@@ -16,7 +16,7 @@ class QuestionCreate(BaseModel):
 class BulkQuestionCreate(BaseModel):
     questions: List[QuestionCreate]
 
-@router.post("/api/admin/questions")
+@router.post("/questions")
 async def create_question(question: QuestionCreate):
     """
     Create a single ACT question
@@ -70,7 +70,7 @@ async def create_question(question: QuestionCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/api/admin/questions/bulk")
+@router.post("/questions/bulk")
 async def create_questions_bulk(bulk: BulkQuestionCreate):
     """
     Create multiple ACT questions at once
@@ -128,7 +128,7 @@ async def create_questions_bulk(bulk: BulkQuestionCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/api/admin/questions/count")
+@router.get("/questions/count")
 async def get_question_count():
     """Get total count of questions by subject"""
     try:

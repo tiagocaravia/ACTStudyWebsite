@@ -94,7 +94,7 @@ const QuestionsPage: React.FC = () => {
       const timeSpent = Math.floor((Date.now() - startTime) / 1000);
       
       try {
-        await fetch(`${API_URL}/api/track-answer`, {
+        await fetch(`${API_URL}/api/check-answer`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

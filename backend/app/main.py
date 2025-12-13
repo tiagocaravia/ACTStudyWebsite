@@ -14,6 +14,11 @@ from app.routes import (
 
 load_dotenv()
 
+# Ensure database tables are created for local/dev usage (use local SQLite DB)
+from app.local_db import engine, Base
+from app import models as _models  # import models so SQLAlchemy registers them
+Base.metadata.create_all(bind=engine)
+
 app = FastAPI(
     title="ACT Study API",
     version="1.0.0",

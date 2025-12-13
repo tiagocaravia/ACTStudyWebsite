@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+// src/context/AuthContext.tsx
+import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import axios from "axios";
 
 interface User {
   id: number;
@@ -10,156 +12,110 @@ interface User {
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, fullName?: string, username?: string) => Promise<void>;
-  logout: () => void;
   loading: boolean;
+  login: (emailOrUsername: string, password: string) => Promise<void>;
+  register: (
+    email: string,
+    password: string,
+    full_name?: string,
+    username?: string
+  ) => Promise<void>;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_URL = 'https://actstudywebsite.onrender.com';
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error("useAuth must be used within AuthProvider");
+  return context;
+};
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(localStorage.getItem("token"));
   const [loading, setLoading] = useState<boolean>(true);
 
+  const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
+
   useEffect(() => {
-    // Check for stored token on mount
-    const storedToken = localStorage.getItem('autonate_token');
-    const storedUser = localStorage.getItem('autonate_user');
-    
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
-      // Verify token is still valid
-      verifyToken(storedToken);
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  const verifyToken = async (tokenToVerify: string) => {
-    try {
-      const response = await fetch(`${API_URL}/api/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${tokenToVerify}`
-        }
-      });
-      
-      if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-      } else {
-        // Token invalid, clear storage
-        logout();
+    const fetchUser = async () => {
+      if (!token) {
+        setLoading(false);
+        return;
       }
-    } catch (error) {
-      console.error('Token verification failed:', error);
-      logout();
-    } finally {
-      setLoading(false);
+      try {
+        const res = await axios.get(`${API_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setUser(res.data);
+      } catch (err) {
+        setToken(null);
+        localStorage.removeItem("token");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUser();
+  }, [token, API_URL]);
+
+  const login = async (username: string, password: string) => {
+    try {
+      const res = await axios.post(`${API_URL}/auth/login`, { username, password });
+      const accessToken = res.data.access_token;
+      setToken(accessToken);
+      localStorage.setItem("token", accessToken);
+      
+      // Fetch the full user data with the new token
+      const userRes = await axios.get(`${API_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      setUser(userRes.data.user);
+    } catch (err: any) {
+      throw new Error(err.response?.data?.detail || "Login failed");
     }
   };
 
-  const login = async (email: string, password: string) => {
-    const formData = new FormData();
-    formData.append('username', email); // OAuth2 uses 'username' field
-    formData.append('password', password);
-    
-    const response = await fetch(`${API_URL}/api/auth/login`, {
-      method: 'POST',
-      body: formData
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Login failed');
-    }
-
-    const data = await response.json();
-    setToken(data.access_token);
-    setUser(data.user);
-    
-    localStorage.setItem('autonate_token', data.access_token);
-    localStorage.setItem('autonate_user', JSON.stringify(data.user));
-  };
-
-  const register = async (email: string, password: string, fullName?: string, username?: string) => {
-    const response = await fetch(`${API_URL}/api/auth/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
+  const register = async (
+    email: string,
+    password: string,
+    full_name?: string,
+    username?: string
+  ) => {
+    try {
+      const res = await axios.post(`${API_URL}/auth/register`, {
         email,
         password,
-        full_name: fullName,
-        username
-      })
-    });
-
-    if (!response.ok) {
-      let errorMessage = 'Registration failed';
-      try {
-        const error = await response.json();
-        errorMessage = error.detail || error.message || errorMessage;
-      } catch (e) {
-        // If response isn't JSON, use status text
-        errorMessage = response.statusText || `Server error (${response.status})`;
-      }
-      throw new Error(errorMessage);
+        full_name: full_name || "",
+        username: username || "",
+      });
+      const accessToken = res.data.access_token;
+      setToken(accessToken);
+      localStorage.setItem("token", accessToken);
+      
+      // Fetch the full user data with the new token
+      const userRes = await axios.get(`${API_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      setUser(userRes.data.user);
+    } catch (err: any) {
+      throw new Error(err.response?.data?.detail || "Registration failed");
     }
-
-    const data = await response.json();
-    
-    // Verify response structure
-    if (!data.access_token || !data.user) {
-      console.error('Invalid response structure:', data);
-      throw new Error('Invalid response from server');
-    }
-    
-    // Store in localStorage first (synchronous)
-    localStorage.setItem('autonate_token', data.access_token);
-    localStorage.setItem('autonate_user', JSON.stringify(data.user));
-    
-    // Then update state (this triggers re-render)
-    setToken(data.access_token);
-    setUser(data.user);
-    
-    console.log('Registration successful');
-    console.log('Token stored:', !!data.access_token);
-    console.log('User stored:', data.user);
-    
-    // Return a promise that resolves after state is updated
-    return new Promise<void>((resolve) => {
-      // Small delay to ensure state updates
-      setTimeout(() => {
-        resolve();
-      }, 50);
-    });
   };
 
   const logout = () => {
     setUser(null);
     setToken(null);
-    localStorage.removeItem('autonate_token');
-    localStorage.removeItem('autonate_user');
+    localStorage.removeItem("token");
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
 };
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-

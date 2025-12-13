@@ -184,6 +184,70 @@
   font-style: italic;
 }
 
+.universities-section {
+  background: white;
+  color: #333;
+  padding: 80px 20px;
+}
+
+.universities-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.universities-section h2 {
+  font-size: 2.5rem;
+  margin-bottom: 20px;
+  color: #667eea;
+}
+
+.universities-intro {
+  font-size: 1.2rem;
+  color: #666;
+  margin-bottom: 50px;
+}
+
+.universities-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 40px;
+}
+
+.university-card {
+  padding: 40px 30px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 15px;
+  color: white;
+  transition: transform 0.3s ease;
+}
+
+.university-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+}
+
+.university-card h4 {
+  font-size: 1.5rem;
+  margin-bottom: 15px;
+  color: #ffd700;
+}
+
+.university-card p {
+  font-size: 1rem;
+  line-height: 1.6;
+  margin-bottom: 20px;
+  opacity: 0.95;
+}
+
+.avg-score {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #ffd700;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
 .cta-section {
   background: white;
   padding: 80px 20px;
@@ -223,6 +287,12 @@
 .cta-button-large:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.cta-subtext {
+  font-size: 0.95rem;
+  color: #999;
+  margin-top: 20px;
 }
 
 @keyframes fadeIn {

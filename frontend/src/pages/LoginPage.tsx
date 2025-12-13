@@ -1,26 +1,28 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import './AuthPage.css';
+// src/pages/LoginPage.tsx
+import React, { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import "./AuthPage.css";
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setLoading(true);
 
     try {
-      await login(email, password);
-      navigate('/questions');
+      await login(username, password);
+      navigate("/questions");
     } catch (err: any) {
-      setError(err.message || 'Login failed. Please try again.');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -31,30 +33,28 @@ const LoginPage: React.FC = () => {
       <div className="auth-container">
         <div className="auth-header">
           <h1>AutoNate</h1>
-          <h2>Welcome Back</h2>
-          <p>Sign in to continue your ACT prep journey</p>
+          <h2>Login</h2>
+          <p>Sign in to your account</p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
           {error && <div className="error-message">{error}</div>}
-          
+
           <div className="form-group">
-            <label htmlFor="email">Email</label>
+            <label>Email or Username</label>
             <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               required
-              placeholder="your.email@example.com"
+              placeholder="your.email@example.com or johndoe123"
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label>Password</label>
             <input
               type="password"
-              id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -63,13 +63,13 @@ const LoginPage: React.FC = () => {
           </div>
 
           <button type="submit" className="auth-button" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? "Logging in..." : "Login"}
           </button>
         </form>
 
         <div className="auth-footer">
           <p>
-            Don't have an account? <Link to="/register">Sign up</Link>
+            Don't have an account? <Link to="/signup">Sign up</Link>
           </p>
         </div>
       </div>
@@ -78,4 +78,3 @@ const LoginPage: React.FC = () => {
 };
 
 export default LoginPage;
-

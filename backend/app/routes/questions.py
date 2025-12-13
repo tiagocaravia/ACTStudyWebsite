@@ -1,8 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional, List
 from pydantic import BaseModel
-from app.database import get_supabase_client
+from sqlalchemy.orm import Session
+import json
+from app.local_db import get_db
+from app.models.question import Question
 from app.routes.auth import get_current_user
+from app.models.user import User
 
 router = APIRouter()
 
@@ -10,47 +14,29 @@ router = APIRouter()
 # Pydantic Models
 # ============================
 
-class QuestionBase(BaseModel):
+class QuestionResponse(BaseModel):
     id: int
     subject: str
     difficulty: str
-    question: str
+    question_text: str
     choices: List[str]
 
-class QuestionDetail(QuestionBase):
+    class Config:
+        from_attributes = True
+
+class QuestionDetailResponse(QuestionResponse):
     correct_answer: str
     explanation: str
 
+class CheckAnswerRequest(BaseModel):
+    question_id: int
+    user_answer: str
+    time_spent_seconds: int = 0
 
-# ============================
-# SUBJECT COUNTS
-# ============================
-@router.get("/subjects/counts")
-async def get_subject_counts():
-    """
-    Returns number of questions available per subject.
-    """
-    try:
-        supabase = get_supabase_client()
-        subjects = ["math", "english", "reading", "science"]
-
-        counts = {}
-        for subj in subjects:
-            r = (
-                supabase.table("questions")
-                .select("id", count="exact")
-                .eq("subject", subj)
-                .execute()
-            )
-            counts[subj] = r.count or 0
-
-        counts["total"] = sum(counts.values())
-
-        return counts
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
+class CheckAnswerResponse(BaseModel):
+    is_correct: bool
+    correct_answer: str
+    explanation: str
 
 # ============================
 # GET MULTIPLE QUESTIONS
@@ -59,87 +45,79 @@ async def get_subject_counts():
 async def get_questions(
     subject: Optional[str] = Query(None),
     difficulty: Optional[str] = Query(None),
-    random: bool = Query(False),
-    page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
 ):
     """
     Returns a list of questions, with optional filters:
-    - subject
-    - difficulty
-    - random order
-    - pagination
+    - subject (math, english, reading, science)
+    - difficulty (easy, medium, hard)
+    - limit and offset for pagination
     """
     try:
-        supabase = get_supabase_client()
-        query = supabase.table("questions").select("*")
+        query = db.query(Question)
 
         if subject:
-            query = query.eq("subject", subject.lower())
+            query = query.filter(Question.subject == subject.lower())
 
         if difficulty:
-            query = query.eq("difficulty", difficulty.lower())
+            query = query.filter(Question.difficulty == difficulty.lower())
 
-        # Randomization
-        if random:
-            query = query.order("RANDOM()")
+        # Get total count before limit
+        total = query.count()
 
-        # Pagination
-        offset = (page - 1) * limit
-        query = query.range(offset, offset + limit - 1)
+        # Apply pagination
+        questions = query.offset(offset).limit(limit).all()
 
-        response = query.execute()
-
-        # Remove correct answer + explanation for GET
-        cleaned = []
-        for q in response.data:
-            cleaned.append({
-                "id": q["id"],
-                "subject": q["subject"],
-                "difficulty": q["difficulty"],
-                "question": q["question"],
-                "choices": q["choices"]
+        # Convert choices JSON string back to list
+        result = []
+        for q in questions:
+            choices = json.loads(q.choices) if isinstance(q.choices, str) else q.choices
+            result.append({
+                "id": q.id,
+                "subject": q.subject,
+                "difficulty": q.difficulty,
+                "question_text": q.question_text,
+                "choices": choices
             })
 
         return {
-            "questions": cleaned,
-            "count": len(cleaned),
-            "page": page
+            "questions": result,
+            "count": len(result),
+            "total": total,
+            "offset": offset,
+            "limit": limit
         }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ============================
 # GET SINGLE QUESTION
 # ============================
 @router.get("/{question_id}")
-async def get_question(question_id: int):
+async def get_question(
+    question_id: int,
+    db: Session = Depends(get_db)
+):
     """
     Returns a single question WITHOUT the correct answer.
     """
     try:
-        supabase = get_supabase_client()
-        r = (
-            supabase.table("questions")
-            .select("*")
-            .eq("id", question_id)
-            .execute()
-        )
+        q = db.query(Question).filter(Question.id == question_id).first()
 
-        if not r.data:
+        if not q:
             raise HTTPException(status_code=404, detail="Question not found")
 
-        q = r.data[0]
+        choices = json.loads(q.choices) if isinstance(q.choices, str) else q.choices
 
-        # Hide correct answer on GET
         return {
-            "id": q["id"],
-            "subject": q["subject"],
-            "difficulty": q["difficulty"],
-            "question": q["question"],
-            "choices": q["choices"]
+            "id": q.id,
+            "subject": q.subject,
+            "difficulty": q.difficulty,
+            "question_text": q.question_text,
+            "choices": choices
         }
 
     except HTTPException:
@@ -147,58 +125,60 @@ async def get_question(question_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # ============================
 # CHECK ANSWER
 # ============================
-@router.post("/check")
+@router.post("/check", response_model=CheckAnswerResponse)
 async def check_answer(
-    question_id: int,
-    user_answer: str,
-    time_spent_seconds: int = 0,
-    user: dict = Depends(get_current_user)
+    body: CheckAnswerRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
-    Checks an answer, logs it to Supabase, returns correctness + explanation.
+    Checks an answer and returns correctness + explanation.
     """
     try:
-        supabase = get_supabase_client()
+        q = db.query(Question).filter(Question.id == body.question_id).first()
 
-        # Fetch question
-        r = (
-            supabase.table("questions")
-            .select("*")
-            .eq("id", question_id)
-            .execute()
-        )
-
-        if not r.data:
+        if not q:
             raise HTTPException(status_code=404, detail="Question not found")
 
-        q = r.data[0]
-
+        # Normalize and compare answers
         is_correct = (
-            user_answer.strip().lower() ==
-            q["correct_answer"].strip().lower()
+            body.user_answer.strip().upper() == 
+            q.correct_answer.strip().upper()
         )
-
-        # Log the answer
-        supabase.table("user_answers").insert({
-            "user_id": user["id"],
-            "question_id": question_id,
-            "user_answer": user_answer,
-            "is_correct": is_correct,
-            "time_spent_seconds": time_spent_seconds
-        }).execute()
 
         return {
             "is_correct": is_correct,
-            "correct_answer": q["correct_answer"],
-            "explanation": q["explanation"]
+            "correct_answer": q.correct_answer,
+            "explanation": q.explanation
         }
 
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============================
+# SUBJECT COUNTS
+# ============================
+@router.get("/subjects/counts")
+async def get_subject_counts(db: Session = Depends(get_db)):
+    """
+    Returns number of questions available per subject.
+    """
+    try:
+        subjects = ["math", "english", "reading", "science"]
+        counts = {}
+
+        for subj in subjects:
+            count = db.query(Question).filter(Question.subject == subj).count()
+            counts[subj] = count
+
+        counts["total"] = sum(counts.values())
+        return counts
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

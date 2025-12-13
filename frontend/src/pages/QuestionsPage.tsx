@@ -1,283 +1,248 @@
-// src/pages/QuestionsPage.tsx
-import React, { useState, useEffect, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import ProgressDashboard from "../components/ProgressDashboard";
-import { useSession } from "../hooks/useSession";
 import "./QuestionsPage.css";
 
 interface Question {
   id: number;
   subject: string;
   question_text: string;
-  choices: string[];
-  correct_answer: string;
-  explanation: string;
-  difficulty: string;
+  choices?: string[];
+  correct_answer?: string;
+  explanation?: string;
+  difficulty?: string;
+}
+
+interface Answer {
+  questionId: number;
+  selectedAnswer: string;
+  isCorrect: boolean;
+  timeSpent: number;
 }
 
 const QuestionsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
-  const [searchParams] = useSearchParams();
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [selectedSubject, setSelectedSubject] = useState<string>(
-    searchParams.get("subject") || "all"
-  );
-  const [userAnswers, setUserAnswers] = useState<{ [key: number]: string }>({});
-  const [showResults, setShowResults] = useState<{ [key: number]: boolean }>({});
-  const [loading, setLoading] = useState<boolean>(true);
-  const questionStartTimes = useRef<{ [key: number]: number }>({});
+  const { user } = useAuth();
 
-  const { sessionId, startSession, submitAnswer, finishSession, results } = useSession();
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState<string>("");
+  const [showExplanation, setShowExplanation] = useState(false);
+  const [answers, setAnswers] = useState<Answer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [questionStartTime, setQuestionStartTime] = useState(Date.now());
 
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
 
-  // ---------------------------
-  // Fetch questions from API
-  // ---------------------------
-  const fetchQuestions = async (subject?: string) => {
-    setLoading(true);
+  const fetchQuestions = useCallback(async () => {
     try {
-      const query = subject && subject !== "all" ? `?subject=${subject}&limit=20` : "?limit=20";
-      const res = await fetch(`${API_URL}/questions${query}`);
-      const data = await res.json();
-      setQuestions(data.questions || []);
+      setLoading(true);
+      const res = await fetch(`${API_URL}/questions?limit=10`);
+      if (res.ok) {
+        const data = await res.json();
+        setQuestions(data.questions || []);
+      }
     } catch (error) {
-      console.error(error);
+      console.error("Failed to fetch questions:", error);
+      setQuestions([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [API_URL]);
 
-  // ---------------------------
-  // Handle subject filter
-  // ---------------------------
-  const handleSubjectChange = (subject: string) => {
-    setSelectedSubject(subject);
-    fetchQuestions(subject);
-    setUserAnswers({});
-    setShowResults({});
-  };
+  useEffect(() => {
+    fetchQuestions();
+  }, [fetchQuestions]);
 
-  // ---------------------------
-  // Handle answer selection
-  // ---------------------------
-  const handleAnswerSelect = (questionId: number, answer: string) => {
-    setUserAnswers({ ...userAnswers, [questionId]: answer });
-    if (!questionStartTimes.current[questionId]) {
-      questionStartTimes.current[questionId] = Date.now();
-    }
-  };
+  if (!user) {
+    navigate("/login");
+    return null;
+  }
 
-  // ---------------------------
-  // Check answer (submit to session)
-  // ---------------------------
-  const handleCheckAnswer = async (questionId: number) => {
-    setShowResults({ ...showResults, [questionId]: true });
-    const userAnswer = userAnswers[questionId];
-    if (!userAnswer) return;
-
-    // Start session if not already started
-    if (!sessionId) {
-      try {
-        await startSession();
-      } catch (err) {
-        console.error("Failed to start session:", err);
-        return;
-      }
-    }
-
-    const timeSpent = Math.floor(
-      (Date.now() - (questionStartTimes.current[questionId] || Date.now())) / 1000
+  if (loading) {
+    return (
+      <div className="questions-page">
+        <div className="loading">Loading questions...</div>
+      </div>
     );
+  }
 
-    try {
-      await submitAnswer(questionId, userAnswer, timeSpent);
-    } catch (error) {
-      console.error("Error submitting answer:", error);
+  if (questions.length === 0) {
+    return (
+      <div className="questions-page">
+        <div className="questions-header">
+          <h1>ACT Practice</h1>
+        </div>
+        <div className="empty-state">
+          <h2>No questions available yet</h2>
+          <p>Questions will be added soon.</p>
+          <button className="btn-summary" onClick={() => navigate("/summary")}>
+            View Summary
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const currentQuestion = questions[currentQuestionIndex];
+  const currentAnswer = answers.find(a => a.questionId === currentQuestion.id);
+  const progress = Math.round(((currentQuestionIndex + 1) / questions.length) * 100);
+
+  const handleSubmitAnswer = () => {
+    if (!selectedAnswer) return;
+
+    const timeSpent = Math.round((Date.now() - questionStartTime) / 1000);
+    const isCorrect = selectedAnswer === currentQuestion.correct_answer;
+
+    const newAnswer: Answer = {
+      questionId: currentQuestion.id,
+      selectedAnswer,
+      isCorrect,
+      timeSpent
+    };
+
+    setAnswers([...answers, newAnswer]);
+    setShowExplanation(true);
+  };
+
+  const handleNext = () => {
+    if (currentQuestionIndex < questions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+      setSelectedAnswer("");
+      setShowExplanation(false);
+      setQuestionStartTime(Date.now());
+    } else {
+      // Session finished - save stats to sessionStorage and navigate to summary
+      const correctCount = answers.filter((a) => a.isCorrect).length;
+      const incorrectCount = answers.filter((a) => !a.isCorrect).length;
+      const totalTime = answers.reduce((sum, a) => sum + a.timeSpent, 0);
+      const avgTime =
+        answers.length > 0 ? Math.round(totalTime / answers.length) : 0;
+      const accuracy =
+        answers.length > 0
+          ? Math.round((correctCount / answers.length) * 100)
+          : 0;
+
+      const stats = {
+        totalQuestions: questions.length,
+        correctAnswers: correctCount,
+        incorrectAnswers: incorrectCount,
+        skipped: 0,
+        accuracy,
+        averageTimePerQuestion: avgTime,
+        totalTime,
+      };
+
+      sessionStorage.setItem("sessionStats", JSON.stringify(stats));
+      navigate("/summary");
     }
   };
 
-  // ---------------------------
-  // Finish session
-  // ---------------------------
-  const handleFinishSession = async () => {
-    if (!sessionId) return;
-    try {
-      await finishSession();
-      alert("Session finished! Check your dashboard for results.");
-    } catch (err) {
-      console.error("Error finishing session:", err);
+  const handleSkip = () => {
+    if (currentQuestionIndex < questions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+      setSelectedAnswer("");
+      setShowExplanation(false);
+      setQuestionStartTime(Date.now());
+    } else {
+      navigate("/summary");
     }
   };
-
-  // ---------------------------
-  // Start session & fetch questions on mount
-  // ---------------------------
-  useEffect(() => {
-    const initialize = async () => {
-      if (!sessionId) {
-        try {
-          await startSession();
-        } catch (error) {
-          console.error("Error starting session:", error);
-        }
-      }
-      const subjectParam = searchParams.get("subject");
-      fetchQuestions(subjectParam || undefined);
-    };
-    initialize();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
-  // ---------------------------
-  // Redirect to login if not authenticated
-  // ---------------------------
-  useEffect(() => {
-    if (!authLoading && !user) navigate("/login");
-  }, [authLoading, user, navigate]);
-
-  // ---------------------------
-  // Get color by subject
-  // ---------------------------
-  const getSubjectColor = (subject: string) => {
-    const colors: { [key: string]: string } = {
-      math: "#61dafb",
-      english: "#f39c12",
-      reading: "#9b59b6",
-      science: "#2ecc71",
-    };
-    return colors[subject] || "#61dafb";
-  };
-
-  if (authLoading) return <div className="loading">Loading...</div>;
-  if (!user) return <div className="loading">Redirecting to login...</div>;
 
   return (
     <div className="questions-page">
       <div className="questions-header">
-        <h1>ACT Practice Questions</h1>
-        <div>
-          <button className="summary-button" onClick={() => navigate("/summary")}>
-            View Summary
-          </button>
-          <button className="finish-session-btn" onClick={handleFinishSession}>
-            Finish Session
-          </button>
+        <div className="header-left">
+          <h1>ACT Practice</h1>
+          <p>Welcome, {user?.full_name || user?.email}</p>
         </div>
-      </div>
-
-      {/* Progress Dashboard */}
-      <ProgressDashboard userId={user.id} API_URL={API_URL} />
-
-      {/* Subject Filter */}
-      <div className="subject-filter">
-        <button
-          onClick={() => handleSubjectChange("all")}
-          className={`subject-btn ${selectedSubject === "all" ? "active" : ""}`}
-        >
-          All Subjects
+        <button className="btn-summary" onClick={() => navigate("/summary")}>
+          Summary
         </button>
-        {["math", "english", "reading", "science"].map((subject) => (
-          <button
-            key={subject}
-            onClick={() => handleSubjectChange(subject)}
-            className={`subject-btn ${selectedSubject === subject ? "active" : ""}`}
-            style={{
-              backgroundColor: selectedSubject === subject ? getSubjectColor(subject) : "#444",
-            }}
-          >
-            {subject.charAt(0).toUpperCase() + subject.slice(1)}
-          </button>
-        ))}
       </div>
 
-      {/* Questions */}
-      <div className="questions-container">
-        {loading ? (
-          <p className="loading">Loading questions...</p>
-        ) : questions.length === 0 ? (
-          <p className="no-questions">No questions found.</p>
-        ) : (
-          questions.map((q, index) => {
-            const userAnswer = userAnswers[q.id];
-            const showResult = showResults[q.id];
-            const isCorrect = userAnswer === q.correct_answer;
+      <div className="progress-section">
+        <div className="progress-bar">
+          <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+        </div>
+        <p className="progress-text">
+          Question {currentQuestionIndex + 1} of {questions.length}
+        </p>
+      </div>
+
+      <div className="question-container">
+        <div className="question-meta">
+          <span className={`difficulty ${currentQuestion.difficulty}`}>
+            {currentQuestion.difficulty?.toUpperCase()}
+          </span>
+          <span className="subject">{currentQuestion.subject}</span>
+        </div>
+
+        <div className="question-text">
+          <h2>{currentQuestion.question_text}</h2>
+        </div>
+
+        <div className="choices-grid">
+          {currentQuestion.choices?.map((choice, idx) => {
+            const labels = ["A", "B", "C", "D"];
+            const isSelected = selectedAnswer === choice;
+            const isCorrect = choice === currentQuestion.correct_answer;
+
+            let choiceClass = "choice-button";
+            if (showExplanation) {
+              if (isCorrect) choiceClass += " correct";
+              if (isSelected && !isCorrect) choiceClass += " incorrect";
+            }
+            if (isSelected && !showExplanation) choiceClass += " selected";
 
             return (
-              <div
-                key={q.id}
-                className="question-card"
-                style={{ borderColor: getSubjectColor(q.subject) }}
+              <button
+                key={idx}
+                className={choiceClass}
+                onClick={() => !showExplanation && setSelectedAnswer(choice)}
+                disabled={showExplanation}
               >
-                {/* Question Header */}
-                <div className="question-header">
-                  <span
-                    className="subject-badge"
-                    style={{ backgroundColor: getSubjectColor(q.subject) }}
-                  >
-                    {q.subject}
-                  </span>
-                  <span className="difficulty-badge">{q.difficulty}</span>
-                </div>
-
-                {/* Question Text */}
-                <p className="question-text">
-                  <strong>Q{index + 1}:</strong> {q.question_text}
-                </p>
-
-                {/* Answer Choices */}
-                <div className="choices-container">
-                  {q.choices.map((choice, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => !showResult && handleAnswerSelect(q.id, choice)}
-                      className={`choice ${
-                        showResult && choice === q.correct_answer ? "correct" : ""
-                      } ${
-                        showResult && choice === userAnswer && !isCorrect ? "incorrect" : ""
-                      } ${userAnswer === choice ? "selected" : ""}`}
-                      style={{
-                        backgroundColor:
-                          showResult && choice === q.correct_answer
-                            ? "#2ecc71"
-                            : showResult && choice === userAnswer && !isCorrect
-                            ? "#e74c3c"
-                            : userAnswer === choice
-                            ? "#3498db"
-                            : "#1a1d23",
-                        cursor: showResult ? "default" : "pointer",
-                      }}
-                    >
-                      {choice}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Check Answer Button */}
-                {!showResult && userAnswer && (
-                  <button onClick={() => handleCheckAnswer(q.id)} className="check-button">
-                    Check Answer
-                  </button>
-                )}
-
-                {/* Result and Explanation */}
-                {showResult && (
-                  <div className={`result ${isCorrect ? "correct-result" : "incorrect-result"}`}>
-                    <p className="result-message">{isCorrect ? "✓ Correct!" : "✗ Incorrect"}</p>
-                    <p className="correct-answer">
-                      <strong>Correct Answer:</strong> {q.correct_answer}
-                    </p>
-                    <p className="explanation">
-                      <strong>Explanation:</strong> {q.explanation}
-                    </p>
-                  </div>
-                )}
-              </div>
+                <span className="choice-label">{labels[idx]}</span>
+                <span className="choice-text">{choice}</span>
+              </button>
             );
-          })
+          })}
+        </div>
+
+        {showExplanation && (
+          <div className="explanation-box">
+            <div className={`result-badge ${currentAnswer?.isCorrect ? "correct" : "incorrect"}`}>
+              {currentAnswer?.isCorrect ? "✓ Correct!" : "✗ Incorrect"}
+            </div>
+            <div className="explanation-content">
+              <h3>Explanation</h3>
+              <p>{currentQuestion.explanation || "No explanation available."}</p>
+              <p className="time-info">Time spent: {currentAnswer?.timeSpent}s</p>
+            </div>
+          </div>
         )}
+
+        <div className="button-group">
+          {!showExplanation && (
+            <>
+              <button className="btn-secondary" onClick={handleSkip}>
+                Skip
+              </button>
+              <button
+                className="btn-primary"
+                onClick={handleSubmitAnswer}
+                disabled={!selectedAnswer}
+              >
+                Submit Answer
+              </button>
+            </>
+          )}
+          {showExplanation && (
+            <button className="btn-primary" onClick={handleNext}>
+              {currentQuestionIndex === questions.length - 1 ? "Finish" : "Next Question"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

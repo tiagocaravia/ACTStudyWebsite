@@ -1,12 +1,13 @@
-// src/pages/RegisterPage.tsx
+// src/pages/SignUpPage.tsx
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import "./AuthPage.css";
 
-const RegisterPage: React.FC = () => {
+const SignUpPage: React.FC = () => {
   const navigate = useNavigate();
   const { register } = useAuth();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -20,12 +21,12 @@ const RegisterPage: React.FC = () => {
     setLoading(true);
 
     try {
-      await register(email, password, fullName || undefined, username || undefined);
+      await register(email, password, fullName, username);
       navigate("/questions");
     } catch (err: any) {
-      // Display backend error
-      setError(err.response?.data?.detail || err.message || "Registration failed.");
-    } finally {
+      // Handle error message from axios or auth context
+      const errorMsg = err.response?.data?.detail || err.message || "Registration failed. Please try again.";
+      setError(errorMsg);
       setLoading(false);
     }
   };
@@ -43,32 +44,9 @@ const RegisterPage: React.FC = () => {
           {error && <div className="error-message">{error}</div>}
 
           <div className="form-group">
-            <label htmlFor="fullName">Full Name</label>
-            <input
-              type="text"
-              id="fullName"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Your full name"
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="username">Username</label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Optional username"
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="email">Email</label>
+            <label>Email</label>
             <input
               type="email"
-              id="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -77,19 +55,42 @@ const RegisterPage: React.FC = () => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label>Full Name (optional)</label>
             <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="At least 8 chars, uppercase, lowercase, number"
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="John Doe"
             />
           </div>
 
+          <div className="form-group">
+            <label>Username</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="johndoe123"
+            />
+            <span className="password-hint">Optional - use email to login if not provided</span>
+          </div>
+
+          <div className="form-group">
+            <label>Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              placeholder="Enter a strong password"
+            />
+            <span className="password-hint">
+              Must be at least 8 characters, include uppercase, lowercase, and number
+            </span>
+          </div>
+
           <button type="submit" className="auth-button" disabled={loading}>
-            {loading ? "Creating Account..." : "Sign Up"}
+            {loading ? "Signing up..." : "Sign Up"}
           </button>
         </form>
 
@@ -103,4 +104,4 @@ const RegisterPage: React.FC = () => {
   );
 };
 
-export default RegisterPage;
+export default SignUpPage;

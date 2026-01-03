@@ -10,7 +10,7 @@
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 40px;
-  max-width: 900px;
+  max-width: 1200px;
   margin-left: auto;
   margin-right: auto;
 }
@@ -51,7 +51,7 @@
 }
 
 .progress-section {
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto 40px;
 }
 
@@ -77,26 +77,91 @@
   font-size: 0.95rem;
 }
 
+/* Split-pane layout for ACT-style questions */
 .question-container {
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
   background: #2a2f3a;
   border-radius: 12px;
-  padding: 40px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
 }
 
-.question-meta {
+.question-split-pane {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 500px;
+}
+
+.question-panel {
+  padding: 32px;
+}
+
+.question-panel-left {
+  background: #242836;
+  border-right: 2px solid #3a3f4a;
+  display: flex;
+  flex-direction: column;
+}
+
+.question-panel-right {
+  background: #2a2f3a;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Passage/data panel styling */
+.passage-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.passage-content pre {
+  white-space: pre-wrap;
+  font-family: 'Georgia', serif;
+  font-size: 1.05rem;
+  line-height: 1.8;
+  color: #e0e0e0;
+  margin: 0;
+}
+
+/* Data table styling for science questions */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 0.95rem;
+}
+
+.data-table th,
+.data-table td {
+  border: 1px solid #4a4f5a;
+  padding: 10px 14px;
+  text-align: center;
+}
+
+.data-table th {
+  background: #1a1f2e;
+  color: #667eea;
+  font-weight: 600;
+}
+
+.data-table tr:nth-child(even) {
+  background: #1e222c;
+}
+
+/* Question meta in split layout */
+.question-meta-split {
   display: flex;
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   align-items: center;
 }
 
 .difficulty {
   padding: 6px 12px;
   border-radius: 6px;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
   letter-spacing: 1px;
 }
@@ -120,27 +185,38 @@
   padding: 6px 12px;
   background: #1a1f2e;
   border-radius: 6px;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: #667eea;
   font-weight: 600;
 }
 
-.question-text {
-  margin: 0 0 30px;
+.question-label {
+  font-size: 0.85rem;
+  color: #667eea;
+  font-weight: 600;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
-.question-text h2 {
-  font-size: 1.4rem;
+/* Question text in right panel */
+.question-text-split {
+  margin: 0 0 24px;
+}
+
+.question-text-split h2 {
+  font-size: 1.25rem;
   margin: 0;
   line-height: 1.6;
   color: #fff;
   font-weight: 600;
 }
 
+/* Choices grid - vertical stack for split layout */
 .choices-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   margin-bottom: 32px;
 }
 
@@ -148,13 +224,13 @@
   background: #1a1f2e;
   border: 2px solid #3a3f4a;
   color: white;
-  padding: 16px;
+  padding: 14px 16px;
   border-radius: 8px;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 1rem;
+  font-size: 0.95rem;
   transition: all 0.2s;
   text-align: left;
 }
@@ -188,13 +264,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   background: #667eea;
   border-radius: 50%;
   color: white;
   font-weight: 700;
   flex-shrink: 0;
+  font-size: 0.9rem;
 }
 
 .choice-button.selected .choice-label,
@@ -206,23 +283,25 @@
 
 .choice-text {
   flex: 1;
+  line-height: 1.4;
 }
 
+/* Explanation box */
 .explanation-box {
   background: #1a1f2e;
   border-left: 4px solid #667eea;
-  padding: 24px;
+  padding: 20px;
   border-radius: 8px;
-  margin-bottom: 24px;
+  margin-top: auto;
 }
 
 .result-badge {
   display: inline-block;
-  padding: 8px 16px;
+  padding: 6px 14px;
   border-radius: 6px;
   font-weight: 700;
-  font-size: 1.1rem;
-  margin-bottom: 16px;
+  font-size: 1rem;
+  margin-bottom: 12px;
 }
 
 .result-badge.correct {
@@ -236,27 +315,31 @@
 }
 
 .explanation-content h3 {
-  margin: 16px 0 12px;
-  font-size: 1.1rem;
+  margin: 12px 0 8px;
+  font-size: 1rem;
   color: #fff;
 }
 
 .explanation-content p {
-  margin: 0 0 12px;
+  margin: 0 0 10px;
   color: #ccc;
   line-height: 1.5;
+  font-size: 0.95rem;
 }
 
 .time-info {
   color: #999;
-  font-size: 0.9rem;
-  margin-top: 12px;
+  font-size: 0.85rem;
+  margin-top: 10px;
 }
 
+/* Button group */
 .button-group {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 20px;
 }
 
 .btn-primary,
@@ -295,6 +378,7 @@
   transform: translateY(-2px);
 }
 
+/* Loading and empty states */
 .loading {
   text-align: center;
   padding: 60px 20px;
@@ -320,5 +404,22 @@
 
 .empty-state .btn-summary {
   display: inline-block;
+}
+
+/* Responsive design for mobile */
+@media (max-width: 768px) {
+  .question-split-pane {
+    grid-template-columns: 1fr;
+  }
+
+  .question-panel-left {
+    border-right: none;
+    border-bottom: 2px solid #3a3f4a;
+    max-height: 300px;
+  }
+
+  .question-panel {
+    padding: 24px 20px;
+  }
 }
 

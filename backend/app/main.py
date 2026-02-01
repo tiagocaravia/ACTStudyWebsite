@@ -6,10 +6,10 @@ from dotenv import load_dotenv
 from app.routes import (
     auth,
     admin,
-    analytics,
-    ai_feedback,
+    # analytics,  # TODO: Migrate to SQLAlchemy
+    # ai_feedback,  # TODO: Migrate to SQLAlchemy
     questions,
-    sessions,  # <-- newly added
+    # sessions,  # TODO: Migrate to SQLAlchemy
 )
 
 load_dotenv()
@@ -55,7 +55,7 @@ def health_check():
 # -------------------------------
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
-app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
-app.include_router(ai_feedback.router, prefix="/api/ai", tags=["ai"])
+# app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])  # TODO: Migrate
+# app.include_router(ai_feedback.router, prefix="/api/ai", tags=["ai"])  # TODO: Migrate
 app.include_router(questions.router, prefix="/api/questions", tags=["questions"])
-app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"])  # <-- sessions
+# app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"])  # TODO: Migrate

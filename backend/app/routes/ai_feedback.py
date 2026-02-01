@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import Optional, Dict, List
 import os
-from app.database import get_supabase_client
+# from app.database import get_supabase_client  # TODO: Migrate to SQLAlchemy
 
 router = APIRouter()
 

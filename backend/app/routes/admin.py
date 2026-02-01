@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional
-from app.database import get_supabase_client
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.models.question import Question
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -17,7 +19,7 @@ class BulkQuestionCreate(BaseModel):
     questions: List[QuestionCreate]
 
 @router.post("/questions")
-async def create_question(question: QuestionCreate):
+async def create_question(question: QuestionCreate, db: Session = Depends(get_db)):
     """
     Create a single ACT question
     Requires admin authentication (add auth middleware in production)
@@ -47,37 +49,40 @@ async def create_question(question: QuestionCreate):
                 detail="correct_answer must be one of the provided choices"
             )
         
-        supabase = get_supabase_client()
+        # Create new question
+        import json
+        db_question = Question(
+            subject=question.subject.lower(),
+            question_text=question.question_text,
+            choices=json.dumps(question.choices),
+            correct_answer=question.correct_answer,
+            explanation=question.explanation,
+            difficulty=question.difficulty.lower() if question.difficulty else None
+        )
         
-        question_data = {
-            "subject": question.subject.lower(),
-            "question_text": question.question_text,
-            "choices": question.choices,
-            "correct_answer": question.correct_answer,
-            "explanation": question.explanation,
-            "difficulty": question.difficulty.lower() if question.difficulty else None
-        }
-        
-        response = supabase.table("questions").insert(question_data).execute()
+        db.add(db_question)
+        db.commit()
+        db.refresh(db_question)
         
         return {
             "success": True,
-            "question_id": response.data[0]["id"] if response.data else None,
+            "question_id": db_question.id,
             "message": "Question created successfully"
         }
     except HTTPException:
         raise
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/questions/bulk")
-async def create_questions_bulk(bulk: BulkQuestionCreate):
+async def create_questions_bulk(bulk: BulkQuestionCreate, db: Session = Depends(get_db)):
     """
     Create multiple ACT questions at once
     Useful for importing questions from a dataset
     """
     try:
-        supabase = get_supabase_client()
+        import json
         created = []
         errors = []
         
@@ -100,19 +105,22 @@ async def create_questions_bulk(bulk: BulkQuestionCreate):
                     })
                     continue
                 
-                question_data = {
-                    "subject": question.subject.lower(),
-                    "question_text": question.question_text,
-                    "choices": question.choices,
-                    "correct_answer": question.correct_answer,
-                    "explanation": question.explanation,
-                    "difficulty": question.difficulty.lower() if question.difficulty else None
-                }
+                # Create new question
+                db_question = Question(
+                    subject=question.subject.lower(),
+                    question_text=question.question_text,
+                    choices=json.dumps(question.choices),
+                    correct_answer=question.correct_answer,
+                    explanation=question.explanation,
+                    difficulty=question.difficulty.lower() if question.difficulty else None
+                )
                 
-                response = supabase.table("questions").insert(question_data).execute()
-                if response.data:
-                    created.append(response.data[0]["id"])
+                db.add(db_question)
+                db.commit()
+                db.refresh(db_question)
+                created.append(db_question.id)
             except Exception as e:
+                db.rollback()
                 errors.append({
                     "index": idx,
                     "error": str(e)
@@ -129,19 +137,15 @@ async def create_questions_bulk(bulk: BulkQuestionCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/questions/count")
-async def get_question_count():
+async def get_question_count(db: Session = Depends(get_db)):
     """Get total count of questions by subject"""
     try:
-        supabase = get_supabase_client()
         subjects = ["math", "english", "reading", "science"]
         result = {}
         
         for subject in subjects:
-            response = supabase.table("questions")\
-                .select("id", count="exact")\
-                .eq("subject", subject)\
-                .execute()
-            result[subject] = response.count or 0
+            count = db.query(Question).filter(Question.subject == subject).count()
+            result[subject] = count
         
         total = sum(result.values())
         result["total"] = total

@@ -21,7 +21,7 @@ router = APIRouter(tags=["auth"])  # router has no internal prefix; main.py incl
 
 
 # Register
-@router.post("/register", response_model=schemas.UserResponse)
+@router.post("/register")
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = db.query(UserModel).filter(UserModel.email == user.email).first()
     if db_user:
@@ -36,7 +36,15 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_user)
     token = create_access_token({"sub": str(db_user.id)})
-    return {"user": user, "access_token": token}
+    return {
+        "user": {
+            "id": db_user.id,
+            "email": db_user.email,
+            "full_name": db_user.full_name,
+            "username": db_user.username,
+        },
+        "access_token": token,
+    }
 
 
 # Login
@@ -59,7 +67,15 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_access_token({"sub": str(user.id)})
-    return {"user": {"email": user.email, "full_name": user.full_name, "username": user.username}, "access_token": token}
+    return {
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "username": user.username,
+        },
+        "access_token": token,
+    }
 
 
 # Get current user

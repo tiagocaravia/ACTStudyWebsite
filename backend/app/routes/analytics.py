@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from app.database import get_supabase_client
+# from app.database import get_supabase_client  # TODO: Migrate to SQLAlchemy
 from app.routes.auth import get_current_user
 
 router = APIRouter()
